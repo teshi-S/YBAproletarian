@@ -1,3 +1,10 @@
+-- Configuration intégrée
+-- Vérifier si la configuration existe déjà
+if not getgenv().Config then
+    warn("La configuration n'a pas été chargée. Assurez-vous d'exécuter le script de configuration d'abord.")
+    return
+end
+
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -411,4 +418,3 @@ while true do
     hopServer() -- Changer de serveur
     wait(5) -- Attendre avant de recommencer dans le nouveau serveur
 end
-print("good day comrade")
