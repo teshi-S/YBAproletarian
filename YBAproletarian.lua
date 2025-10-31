@@ -13,11 +13,149 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+-- Système de débogage
+local Debug = {
+    MaxItems = {
+        ["Mysterious Arrow"] = 25,
+        ["Rokakaka"] = 25,
+        ["Pure Rokakaka"] = 25,
+        ["Rib Cage of The Saint's Corpse"] = 10,
+        ["Steel Ball"] = 10,
+        ["Zeppelin's Headband"] = 10,
+        ["Ancient Scroll"] = 10,
+        ["Quinton's Glove"] = 10,
+        ["Stone Mask"] = 10,
+        ["Gold Coin"] = 45,
+        ["Diamond"] = 30,
+        ["Lucky Arrow"] = 1000,
+        ["Lucky Stone Mask"] = 1000,
+        ["Dio's Diary"] = 100,
+        ["Yellow Candy"] = 100,
+        ["Red Candy"] = 100,
+        ["Blue Candy"] = 100,
+        ["Green Candy"] = 100
+    },
+    
+    Log = function(message, type)
+        if not getgenv().Config.Debug then return end
+        
+        if type == "warn" then
+            warn("[YBA Farm] " .. message)
+        elseif type == "error" then
+            error("[YBA Farm] " .. message)
+        else
+            print("[YBA Farm] " .. message)
+        end
+    end
+}
+
+-- Fonction pour vérifier et vendre les items
+local function checkAndSellItems()
+    if not getgenv().Config.AutoSell.Enabled then return end
+    
+    local player = game:GetService("Players").LocalPlayer
+    if not player or not player.Character then
+        Debug.Log("Joueur ou personnage non trouvé", "warn")
+        return
+    end
+    
+    local backpack = player:WaitForChild("Backpack")
+    local remoteEvent = player.Character:WaitForChild("RemoteEvent")
+    
+    -- Vérifier les items dans le backpack
+    for itemName, maxCount in pairs(Debug.MaxItems) do
+        local count = 0
+        local itemToSell = nil
+        
+        -- Compter les items et trouver un à vendre
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == itemName then
+                count = count + 1
+                if count == maxCount then  -- Exactement au maximum
+                    itemToSell = item
+                    break
+                end
+            end
+        end
+        
+        -- Si on a atteint exactement le maximum, vendre un item
+        if count == maxCount and itemToSell then
+            Debug.Log(itemName .. " : Maximum atteint (" .. maxCount .. ") - Vente d'un item pour libérer de l'espace", "print")
+            
+            -- Processus de vente détaillé
+            pcall(function()
+                Debug.Log("Début du processus de vente pour " .. itemName, "print")
+
+                -- Méthode 1: Utiliser l'outil de Roblox
+                local Tool = itemToSell:FindFirstChildOfClass("Tool")
+                if Tool then
+                    -- Activer l'outil
+                    Tool:Activate()
+                    Debug.Log("→ Activation de l'outil", "print")
+                end
+
+                -- Méthode 2: Utiliser un RemoteEvent pour équiper
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid:EquipTool(itemToSell)
+                    Debug.Log("→ Item équipé via Humanoid", "print")
+                end
+
+                -- Méthode 3: Simuler un clic sur l'item
+                player.Character.RemoteEvent:FireServer("ToolHandler", itemToSell)
+                Debug.Log("→ Simulation du clic sur l'item", "print")
+                
+                task.wait(0.3) -- Attendre que l'item soit équipé
+                
+                -- 3. Vérifier si l'item est bien équipé
+                if itemToSell.Parent == player.Character then
+                    Debug.Log("→ Item correctement équipé, préparation à la vente", "print")
+                    
+                    -- 4. Vendre l'item via le dialogue du marchand
+                    remoteEvent:FireServer("EndDialogue", {
+                        Dialogue = "Dialogue5",
+                        NPC = "Merchant",
+                        Option = "Option1" -- Option1 = vendre un seul item
+                    })
+                    
+                    Debug.Log("→ Commande de vente envoyée", "print")
+                    task.wait(0.5) -- Attendre que la vente soit traitée
+                    
+                    -- 5. Vérifier si la vente a réussi
+                    if not itemToSell or not itemToSell.Parent then
+                        Debug.Log("✓ Vente réussie de " .. itemName, "print")
+                    else
+                        -- Si l'item existe encore, le remettre dans le backpack
+                        itemToSell.Parent = oldParent
+                        Debug.Log("⚠ Échec de la vente, item remis dans le backpack", "warn")
+                    end
+                else
+                    Debug.Log("⚠ Échec de l'équipement de l'item", "warn")
+                end
+            end)
+            
+            task.wait(1) -- Attendre avant de vérifier le prochain item
+        else
+            Debug.Log(itemName .. " : " .. count .. "/" .. maxCount .. " - OK", "print")
+        end
+    end
+end
+
 -- Variables
-local itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
 local Player = game:GetService("Players").LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local FunctionLibrary = require(game:GetService("ReplicatedStorage"):WaitForChild('Modules').FunctionLibrary)
+
+-- Fonction pour obtenir les items
+local function getItems()
+    local itemSpawns = game:GetService("Workspace"):WaitForChild("Item_Spawns", 10)
+    if not itemSpawns then return {} end
+    local items = itemSpawns:WaitForChild("Items", 10)
+    if not items then return {} end
+    return items:GetChildren()
+end
+
+local itemmodel = getItems()
 
 -- Anti-Crash Protection
 local Old = FunctionLibrary.pcall
@@ -120,16 +258,22 @@ local function createESP(part, itemName)
 end
 
 local function updateESP()
+    -- Nettoyer l'ancien ESP
     for _, esp in ipairs(ESPFolder:GetChildren()) do
         esp:Destroy()
     end
     
-    for _, item in ipairs(itemmodel) do
+    -- Mettre à jour la liste des items
+    local items = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
+    
+    -- Créer l'ESP pour chaque item
+    for _, item in ipairs(items) do
         if isRealModel(item) then
-            local part = item:IsA("Model") and item.PrimaryPart or item
-            if part then
-                local itemName = getItemName(item)
-                createESP(part, itemName)
+            local primaryPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
+            if primaryPart then
+                local prompt = item:FindFirstChild("ProximityPrompt", true)
+                local itemName = prompt and prompt.ObjectText or "Item"
+                createESP(primaryPart, itemName)
             end
         end
     end
@@ -338,13 +482,27 @@ end))
 spawn(function()
     while true do
         pcall(function()
+            Debug.Log("Début du cycle de farm", "print")
             collectItems()
+            
+            -- Vérifier et vendre les items si nécessaire
+            if getgenv().Config.AutoSell.Enabled then
+                Debug.Log("Vérification des items à vendre...", "print")
+                checkAndSellItems()
+            end
+            
             task.wait(0.1) -- Délai minimal
+            
             if getgenv().Config.ServerHop then
+                Debug.Log("Changement de serveur...", "print")
                 hopServer()
                 task.wait(1)
             end
         end)
+        
+        if getgenv().Config.Debug then
+            Debug.Log("Cycle terminé", "print")
+        end
     end
 end)
 
@@ -402,10 +560,4 @@ local function hopServer()
     end
 end
 
--- Boucle principale
-while true do
-    teleportToAllChildren() -- Téléporter et collecter
-    wait(1) -- Attendre que tout soit collecté
-    hopServer() -- Changer de serveur
-    wait(5) -- Attendre avant de recommencer dans le nouveau serveur
-end
+-- Supprimer la boucle redondante car nous avons déjà une boucle principale d'exécution
