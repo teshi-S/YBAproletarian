@@ -132,13 +132,34 @@ end
 game:GetService("Players").LocalPlayer.Character.RemoteEvent:FireServer("PressedPlay")
 
 -- Fonctions utilitaires avec anti-détection
--- Fonction pour obtenir le nom de l'item
+-- Fonction pour obtenir et définir le nom de l'item
 local function getItemName(instance)
     local prompt = instance:FindFirstChild("ProximityPrompt", true)
-    if prompt then
+    if prompt and prompt.ObjectText then
+        -- Renomme automatiquement le modèle parent avec le nom de l'item
+        pcall(function()
+            local model = prompt:FindFirstAncestorWhichIsA("Model")
+            if model then
+                model.Name = prompt.ObjectText
+            end
+        end)
         return prompt.ObjectText
     end
     return "Unknown Item"
+end
+
+-- Fonction pour mettre à jour les noms des modèles
+local function updateModelNames()
+    for _, item in ipairs(itemmodel) do
+        if item:IsA("Model") then
+            local prompt = item:FindFirstChild("ProximityPrompt", true)
+            if prompt and prompt.ObjectText then
+                pcall(function()
+                    item.Name = prompt.ObjectText
+                end)
+            end
+        end
+    end
 end
 
 -- Anti Ghost-Item et activation des prompts
@@ -187,6 +208,8 @@ end
 local function collectItems()
     -- Rafraîchir la liste des items
     itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
+    -- Mettre à jour les noms des modèles
+    updateModelNames()
     for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
             local targetPos = item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position or 
@@ -343,4 +366,3 @@ while true do
     hopServer() -- Changer de serveur
     wait(5) -- Attendre avant de recommencer dans le nouveau serveur
 end
-print("god script comrade")
