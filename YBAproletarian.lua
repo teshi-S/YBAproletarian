@@ -64,6 +64,12 @@ local function checkAndSellItems()
     
     -- Vérifier les items dans le backpack
     for itemName, maxCount in pairs(Debug.MaxItems) do
+        -- Vérifier si l'item est configuré pour être vendu
+        if not getgenv().Config.SellItems[itemName] then
+            Debug.Log(itemName .. " configuré pour ne pas être vendu", "print")
+            continue
+        end
+        
         local count = 0
         local itemToSell = nil
         
@@ -78,9 +84,9 @@ local function checkAndSellItems()
             end
         end
         
-        -- Si on a atteint exactement le maximum, vendre un item
-        if count == maxCount and itemToSell then
-            Debug.Log(itemName .. " : Maximum atteint (" .. maxCount .. ") - Vente d'un item pour libérer de l'espace", "print")
+        -- Si on a atteint exactement le maximum et que l'item est configuré pour être vendu
+        if count == maxCount and itemToSell and getgenv().Config.SellItems[itemName] then
+            Debug.Log(itemName .. " : Maximum atteint (" .. maxCount .. ") - Vente autorisée dans la configuration", "print")
             
             -- Processus de vente détaillé
             pcall(function()
