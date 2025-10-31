@@ -6,6 +6,95 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+-- Chargement de WindUI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- Configuration des items à farmer
+local AllItems = HttpService:JSONDecode(readfile("itemname.lua"))
+local SelectedItems = {}
+local FarmEnabled = false
+local AutoHopEnabled = false
+
+-- Creation du GUI
+local Window = WindUI:CreateWindow({
+    Title = "YBA Item Farm",
+    Author = "By Proletarien",
+    Folder = "YBAFarm",
+    HideSearchBar = true
+})
+
+-- Création des sections
+local FarmSection = Window:Section({
+    Title = "Farm avec Auto-Hop",
+})
+
+local ManualSection = Window:Section({
+    Title = "Farm Manuel",
+})
+
+-- Tab de configuration
+local ConfigTab = FarmSection:Tab({
+    Title = "Configuration",
+    Icon = "settings"
+})
+
+-- Créer les toggles pour chaque item
+for _, itemName in ipairs(AllItems.items) do
+    ConfigTab:Toggle({
+        Title = itemName,
+        Flag = itemName.."Toggle",
+        Default = false,
+        Callback = function(state)
+            if state then
+                table.insert(SelectedItems, itemName)
+            else
+                local index = table.find(SelectedItems, itemName)
+                if index then
+                    table.remove(SelectedItems, index)
+                end
+            end
+        end
+    })
+end
+
+ConfigTab:Space()
+
+-- Toggle pour activer/désactiver l'auto-hop
+ConfigTab:Toggle({
+    Title = "Auto-Hop Enabled",
+    Flag = "AutoHopToggle",
+    Default = false,
+    Callback = function(state)
+        AutoHopEnabled = state
+    end
+})
+
+-- Toggle pour activer/désactiver le farm
+ConfigTab:Toggle({
+    Title = "Farm Enabled",
+    Flag = "FarmToggle",
+    Default = false,
+    Callback = function(state)
+        FarmEnabled = state
+    end
+})
+
+-- Tab pour le farm manuel
+local ManualTab = ManualSection:Tab({
+    Title = "Farm Manuel",
+    Icon = "hand"
+})
+
+ManualTab:Toggle({
+    Title = "Farm Sans Auto-Hop",
+    Flag = "ManualFarmToggle",
+    Default = false,
+    Callback = function(state)
+        FarmEnabled = state
+        AutoHopEnabled = false
+    end
+})
+
 -- Variables
 local itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
 local Player = game:GetService("Players").LocalPlayer
@@ -167,18 +256,24 @@ local function activateProximityPrompts(instance)
     for _, prompt in ipairs(instance:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             -- Vérification anti ghost-item
-            if prompt.MaxActivationDistance ~= 0 then
+if prompt and prompt.MaxActivationDistance ~= 0 then
                 pcall(function()
-                    -- Augmente la distance d'activation
-                    prompt.MaxActivationDistance = math.huge
-                    -- Essaie d'activer plusieurs fois pour assurer la collecte
-                    for i = 1, 3 do
-                        fireproximityprompt(prompt)
-                        task.wait(0.1)
-                    end
-                    -- Vérifie si l'item a bien un nom (pour confirmer que c'est un vrai item)
-                    if prompt.ObjectText and prompt.ObjectText ~= "" then
-                        print("Item collecté: " .. prompt.ObjectText)
+                    -- Vérifie si l'item est dans la liste des items sélectionnés
+                    if #SelectedItems == 0 or table.find(SelectedItems, prompt.ObjectText) then
+                        -- Augmente la distance d'activation
+                        prompt.MaxActivationDistance = math.huge
+                        -- Essaie d'activer plusieurs fois pour assurer la collecte
+                        for i = 1, 3 do
+                            fireproximityprompt(prompt)
+                            task.wait(0.1)
+                        end
+                        -- Vérifie si l'item a bien un nom (pour confirmer que c'est un vrai item)
+                        if prompt.ObjectText and prompt.ObjectText ~= "" then
+                            print("Item collecté: " .. prompt.ObjectText)
+                            if table.find(SelectedItems, prompt.ObjectText) then
+                                foundSelectedItem = true
+                            end
+                        end
                     end
                 end)
             end
@@ -206,10 +301,14 @@ end
 
 -- Fonction principale de collecte avec vérifications
 local function collectItems()
+    if not FarmEnabled then return end
+    
     -- Rafraîchir la liste des items
     itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
     -- Mettre à jour les noms des modèles
     updateModelNames()
+    
+    local foundSelectedItem = false
     for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
             local targetPos = item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position or 
@@ -255,20 +354,37 @@ end)
 Character.RemoteEvent:FireServer("PressedPlay")
 -- Fonction de changement de serveur
 local function hopServer()
+    if not AutoHopEnabled then return end
+    
     local placeId = game.PlaceId
     
     -- Récupération des serveurs disponibles
     local function getServer()
         local servers = {}
         local req = HttpService:JSONDecode(game:HttpGet(
-            "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+            "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
         ))
         
         for _, server in ipairs(req.data) do
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                table.insert(servers, server.id)
+            -- Sélectionne les serveurs avec peu de joueurs (moins de 6)
+            if server.playing < 6 and server.id ~= game.JobId then
+                -- Ajoute le serveur avec son temps de création (plus vieux = meilleur)
+                table.insert(servers, {
+                    id = server.id,
+                    playing = server.playing,
+                    ping = server.ping,
+                    age = os.time() - (server.created or os.time())
+                })
             end
         end
+        
+        -- Trie les serveurs par âge (plus vieux en premier) et nombre de joueurs (moins de joueurs en premier)
+        table.sort(servers, function(a, b)
+            if a.age ~= b.age then
+                return a.age > b.age
+            end
+            return a.playing < b.playing
+        end)
         
         return #servers > 0 and servers[math.random(1, #servers)]
     end
