@@ -231,15 +231,7 @@ end
 local function collectItems()
     -- Rafraîchir la liste des items
     itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
-    -- Mettre à jour les noms des modèles
-    updateModelNames()
     
-    -- Vérifier s'il y a des items à collecter
-    if not hasDesiredItems() and getgenv().Config.ServerHop then
-        hopServer()
-        return
-    end
-
     for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
             local prompt = item:FindFirstChild("ProximityPrompt", true)
@@ -248,18 +240,17 @@ local function collectItems()
                                  (item:IsA("BasePart") and item.Position)
                 
                 if targetPos then
-                    -- Collecte rapide
+                    -- Téléportation instantanée et collecte
                     pcall(function()
-                        teleportTo(targetPos)
+                        -- Téléportation directe
+                        Player.Character:SetPrimaryPartCFrame(CFrame.new(targetPos))
+                        -- Collecte instantanée
                         prompt.MaxActivationDistance = math.huge
                         fireproximityprompt(prompt)
-                        
                         if prompt.ObjectText then
                             print("Collecté: " .. prompt.ObjectText)
                         end
                     end)
-                    
-                    task.wait(0.1) -- Délai minimal entre les téléportations
                 end
             end
         end
@@ -339,13 +330,14 @@ spawn(function()
     while true do
         pcall(function()
             collectItems()
-            wait(1)
-            hopServer()
-            wait(5)
+            task.wait(0.1) -- Délai minimal
+            if getgenv().Config.ServerHop then
+                hopServer()
+                task.wait(1)
+            end
         end)
-        wait(1)
     end
-end) 
+end)
 
 local OldNamecallTP;
 OldNamecallTP = hookmetamethod(game, '__namecall', newcclosure(function(self, ...)
