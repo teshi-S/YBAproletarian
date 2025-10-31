@@ -195,20 +195,14 @@ end
 
 local lastTeleport = 0
 local function teleportTo(position)
-    -- Cooldown et anti-détection pour la téléportation
-    if tick() - lastTeleport < 6 then return end
+    -- Cooldown minimal pour éviter les détections
+    if tick() - lastTeleport < 0.1 then return end
     
-    local originalCFrame = Character.PrimaryPart.CFrame
-    local targetCFrame = CFrame.new(position + Vector3.new(0, 3, 0))
-    
-    -- Simulation de mouvement naturel
-    for i = 0, 1, 0.1 do
-        Character:SetPrimaryPartCFrame(originalCFrame:Lerp(targetCFrame, i))
-        wait()
-    end
+    -- Téléportation directe
+    Character:SetPrimaryPartCFrame(CFrame.new(position + Vector3.new(0, 3, 0)))
     
     lastTeleport = tick()
-    wait(0.1)
+    task.wait(0.1) -- Petit délai pour la stabilité
 end
 
 -- Vérifier si un item doit être collecté
@@ -248,37 +242,33 @@ local function collectItems()
 
     for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
-            local targetPos = item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position or 
-                             (item:IsA("BasePart") and item.Position)
-            
-            if targetPos then
-                -- Anti-détection pour la collecte
-                local success = pcall(function()
-                    -- Téléportation vers l'item
-                    teleportTo(targetPos)
-                    
-                    -- Essaie de trouver le ProximityPrompt
-                    local prompt = item:FindFirstChild("ProximityPrompt", true)
-                    if prompt and prompt.MaxActivationDistance ~= 0 then
-                        -- Collecte l'item
-                        activateProximityPrompts(item)
+            local prompt = item:FindFirstChild("ProximityPrompt", true)
+            if prompt and shouldCollectItem(prompt.ObjectText) then
+                local targetPos = item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position or 
+                                 (item:IsA("BasePart") and item.Position)
+                
+                if targetPos then
+                    -- Collecte rapide
+                    pcall(function()
+                        teleportTo(targetPos)
+                        prompt.MaxActivationDistance = math.huge
+                        fireproximityprompt(prompt)
                         
-                        -- Vérifie si l'item a été collecté
-                        wait(0.5) -- Attend un peu pour la collecte
-                        if not prompt or not prompt.Parent then
-                            print("Item collecté avec succès!")
+                        if prompt.ObjectText then
+                            print("Collecté: " .. prompt.ObjectText)
                         end
-                    end
-                end)
-                
-                if not success then
-                    wait(1)  -- Attendre en cas d'échec
-                    continue
+                    end)
+                    
+                    task.wait(0.1) -- Délai minimal entre les téléportations
                 end
-                
-                wait(6)  -- Cooldown entre chaque modèle
             end
         end
+    end
+    
+    -- Après avoir collecté tous les items, changer de serveur
+    if getgenv().Config.ServerHop then
+        task.wait(0.5) -- Petit délai avant le changement de serveur
+        hopServer()
     end
 end
 
