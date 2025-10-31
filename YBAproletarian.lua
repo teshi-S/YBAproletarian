@@ -7,7 +7,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 -- Variables
-local itemmodel = game.Workspace.Item_Spawns.Items.Model
+local itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
 local Player = game:GetService("Players").LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local FunctionLibrary = require(game:GetService("ReplicatedStorage"):WaitForChild('Modules').FunctionLibrary)
@@ -117,7 +117,7 @@ local function updateESP()
         esp:Destroy()
     end
     
-    for _, item in ipairs(itemmodel:GetChildren()) do
+    for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
             local part = item:IsA("Model") and item.PrimaryPart or item
             if part then
@@ -185,7 +185,9 @@ end
 
 -- Fonction principale de collecte avec vérifications
 local function collectItems()
-    for _, item in ipairs(itemmodel:GetChildren()) do
+    -- Rafraîchir la liste des items
+    itemmodel = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items"):GetChildren()
+    for _, item in ipairs(itemmodel) do
         if isRealModel(item) then
             local targetPos = item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position or 
                              (item:IsA("BasePart") and item.Position)
