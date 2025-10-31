@@ -195,14 +195,14 @@ end
 
 local lastTeleport = 0
 local function teleportTo(position)
-    -- Cooldown minimal pour éviter les détections
-    if tick() - lastTeleport < 0.1 then return end
+    -- Cooldown de 5 secondes
+    if tick() - lastTeleport < 5 then return end
     
     -- Téléportation directe
     Character:SetPrimaryPartCFrame(CFrame.new(position + Vector3.new(0, 3, 0)))
     
     lastTeleport = tick()
-    task.wait(0.1) -- Petit délai pour la stabilité
+    task.wait(5) -- Attendre 5 secondes avant la prochaine téléportation
 end
 
 -- Vérifier si un item doit être collecté
@@ -240,13 +240,22 @@ local function collectItems()
                                  (item:IsA("BasePart") and item.Position)
                 
                 if targetPos then
-                    -- Téléportation instantanée et collecte
+                    -- Téléportation et collecte avec délai
                     pcall(function()
-                        -- Téléportation directe
-                        Player.Character:SetPrimaryPartCFrame(CFrame.new(targetPos))
-                        -- Collecte instantanée
+                        -- Notification avant téléportation
+                        game:GetService("StarterGui"):SetCore("SendNotification", {
+                            Title = "YBA Farm",
+                            Text = "Téléportation vers: " .. (prompt.ObjectText or "Item"),
+                            Duration = 3
+                        })
+                        
+                        -- Téléportation avec cooldown
+                        teleportTo(targetPos)
+                        
+                        -- Collecte
                         prompt.MaxActivationDistance = math.huge
                         fireproximityprompt(prompt)
+                        
                         if prompt.ObjectText then
                             print("Collecté: " .. prompt.ObjectText)
                         end
