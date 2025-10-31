@@ -4,12 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 -- Variables
-local itemmodel = workspace.Item_Spawns.Items.Model
-local Player = Players.LocalPlayer
+local itemmodel = game.Workspace.Item_Spawns.Items.Model
+local Player = game:GetService("Players").LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
-local FunctionLibrary = require(ReplicatedStorage:WaitForChild('Modules').FunctionLibrary)
+local FunctionLibrary = require(game:GetService("ReplicatedStorage"):WaitForChild('Modules').FunctionLibrary)
 
 -- Anti-Crash Protection
 local Old = FunctionLibrary.pcall
@@ -50,7 +51,7 @@ local Old = FunctionLibrary.pcall
 -- ESP Configuration
 local ESPFolder = Instance.new("Folder")
 ESPFolder.Name = "ItemESP"
-ESPFolder.Parent = game.CoreGui
+ESPFolder.Parent = game:GetService("CoreGui")
 
 -- Anti-détection des faux modèles
 local function isRealModel(model)
