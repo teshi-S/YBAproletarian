@@ -343,3 +343,4 @@ while true do
     hopServer() -- Changer de serveur
     wait(5) -- Attendre avant de recommencer dans le nouveau serveur
 end
+print("good day comrade")
